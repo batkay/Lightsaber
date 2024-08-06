@@ -52,6 +52,12 @@ default.size.stdout \
 OBJDUMP_LIST += \
 LightsaberFirmware.list \
 
+OBJCOPY_HEX += \
+LightsaberFirmware.hex \
+
+OBJCOPY_BIN += \
+LightsaberFirmware.bin \
+
 
 # All Target
 all: main-build
@@ -75,12 +81,22 @@ LightsaberFirmware.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DE
 	@echo 'Finished building: $@'
 	@echo ' '
 
+LightsaberFirmware.hex: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objcopy  -O ihex $(EXECUTABLES) "LightsaberFirmware.hex"
+	@echo 'Finished building: $@'
+	@echo ' '
+
+LightsaberFirmware.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "LightsaberFirmware.bin"
+	@echo 'Finished building: $@'
+	@echo ' '
+
 # Other Targets
 clean:
-	-$(RM) LightsaberFirmware.elf LightsaberFirmware.list LightsaberFirmware.map default.size.stdout
+	-$(RM) LightsaberFirmware.bin LightsaberFirmware.elf LightsaberFirmware.hex LightsaberFirmware.list LightsaberFirmware.map default.size.stdout
 	-@echo ' '
 
-secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)
+secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST) $(OBJCOPY_HEX) $(OBJCOPY_BIN)
 
 fail-specified-linker-script-missing:
 	@echo 'Error: Cannot find the specified linker script. Check the linker settings in the build configuration.'

@@ -34,6 +34,12 @@ typedef union {
 	} color;
 	uint32_t data;
 } PixelGRB_t;
+
+typedef enum STATE {
+	STARTUP,
+	LIGHT,
+	OFF
+};
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -113,29 +119,72 @@ int main(void)
   MX_DAC_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  int nextLightTime = 16000;
+  int nextLightTime = 100;
+  enum STATE currentState = STARTUP;
+  int prevButton = 0;
+  int offTime;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  int lightTime = TIM2 -> CNT;
+	  int currentButton = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+	  int lightTime = HAL_GetTick();
+
+	  switch(currentState) {
+	  case STARTUP:
+		  if (!currentButton) {
+			  currentState = LIGHT;
+		  }
+		  break;
+	  case LIGHT:
+		  if (!currentButton && prevButton) {
+			  currentState = OFF;
+			  offTime = lightTime;
+		  }
+		  break;
+	  case OFF:
+		  if (lightTime - offTime > 5000) {
+			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
+		  }
+		  if (!currentButton && prevButton) {
+			  currentState = LIGHT;
+		  }
+		  break;
+	  default:
+		  currentState = LIGHT;
+
+	  }
 	  if (lightTime >= nextLightTime) {
-		  nextLightTime = lightTime + 16000;
+		  nextLightTime = lightTime + 100;
 		  for (int i = 0; i < NUM_PIXELS; i++) {
-			  pixels[i].color.g = 50;
-			  pixels[i].color.r = 0;
-			  pixels[i].color.b = 0;
+			  if (currentState != OFF) {
+				  pixels[i].color.g = 0;
+				  pixels[i].color.r = 50;
+				  pixels[i].color.b = 0;
+			  }
+			  else {
+				  pixels[i].color.g = 0;
+				  pixels[i].color.r = 0;
+				  pixels[i].color.b = 0;
+			  }
+
 		  }
 
 		  for (int i = 0; i < NUM_PIXELS; i++) {
 			  for (int j = 0; j < 24; j++) {
-				  dmaBuff[i] = ((pixels[i].data) >> (23 - j)) & 0x01;
+				  if (((pixels[i].data) >> (23 - j)) & 0x01) {
+					  dmaBuff[i * 24 + j] = NEOPIXEL_ONE;
+				  }
+				  else {
+					  dmaBuff[i * 24 + j] = NEOPIXEL_ZERO;
+				  }
 			  }
 		  }
 		  HAL_TIM_PWM_Start_DMA(&htim2, TIM_CHANNEL_1, dmaBuff, DMA_BUFF_SIZE);
 	  }
+	  prevButton = currentButton;
 
 
     /* USER CODE END WHILE */
@@ -318,16 +367,19 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PA0 PA1 PA2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2;
+  /*Configure GPIO pins : PA0 PA1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  /*Configure GPIO pins : PA2 PA3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
