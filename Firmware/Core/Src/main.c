@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "sound.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,7 +35,7 @@ typedef union {
 	uint32_t data;
 } PixelGRB_t;
 
-typedef enum STATE {
+enum STATE {
 	STARTUP,
 	LIGHT,
 	OFF
@@ -61,10 +61,14 @@ typedef enum STATE {
 DAC_HandleTypeDef hdac;
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim5;
+TIM_HandleTypeDef htim6;
 DMA_HandleTypeDef hdma_tim2_ch1;
 
 /* USER CODE BEGIN PV */
-
+int soundIndex = 0;
+int play = 0;
+int rep = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -73,6 +77,8 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_DAC_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM6_Init(void);
+static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -82,6 +88,26 @@ static void MX_TIM2_Init(void);
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
   HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_1);
+}
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+	if (htim == &htim6) {
+		if (play) {
+			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, swing[soundIndex]);
+			soundIndex++;
+			if (soundIndex >= 4272) {
+				soundIndex = 0;
+				play = 0;
+				rep = 1;
+			}
+		}
+		else {
+			if (rep) {
+				HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
+				rep = 0;
+			}
+
+		}
+	}
 }
 /* USER CODE END 0 */
 
@@ -118,11 +144,18 @@ int main(void)
   MX_DMA_Init();
   MX_DAC_Init();
   MX_TIM2_Init();
+  MX_TIM6_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
   int nextLightTime = 100;
   enum STATE currentState = STARTUP;
   int prevButton = 0;
   int offTime;
+  HAL_DAC_Start(&hdac, DAC_CHANNEL_1);
+  HAL_TIM_Base_Start_IT(&htim6);
+  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_4);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -137,12 +170,22 @@ int main(void)
 		  if (!currentButton) {
 			  currentState = LIGHT;
 		  }
+		  play = 1;
+		  __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_4, 900);
+
 		  break;
 	  case LIGHT:
 		  if (!currentButton && prevButton) {
 			  currentState = OFF;
 			  offTime = lightTime;
 		  }
+		  __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_4, 0);
+
+		  // __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
+
+//		  if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1)) {
+//			  play = 1;
+//		  }
 		  break;
 	  case OFF:
 		  if (lightTime - offTime > 5000) {
@@ -335,6 +378,93 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * @brief TIM5 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM5_Init(void)
+{
+
+  /* USER CODE BEGIN TIM5_Init 0 */
+
+  /* USER CODE END TIM5_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM5_Init 1 */
+
+  /* USER CODE END TIM5_Init 1 */
+  htim5.Instance = TIM5;
+  htim5.Init.Prescaler = 0;
+  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim5.Init.Period = 1000 - 1;
+  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_PWM_Init(&htim5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM5_Init 2 */
+
+  /* USER CODE END TIM5_Init 2 */
+  HAL_TIM_MspPostInit(&htim5);
+
+}
+
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 0;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 2000 - 1;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -369,17 +499,14 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-
   /*Configure GPIO pins : PA0 PA1 */
   GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA2 PA3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
+  /*Configure GPIO pin : PA2 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
