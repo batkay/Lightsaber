@@ -28,9 +28,9 @@
 /* USER CODE BEGIN PTD */
 typedef union {
 	struct {
-		uint8_t g;
-		uint8_t r;
 		uint8_t b;
+		uint8_t r;
+		uint8_t g;
 	} color;
 	uint32_t data;
 } PixelGRB_t;
@@ -40,6 +40,7 @@ enum STATE {
 	LIGHT,
 	OFF
 };
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -92,7 +93,7 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim == &htim6) {
 		if (play) {
-			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, swing[soundIndex]);
+			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, swing[soundIndex]);
 			soundIndex++;
 			if (soundIndex >= 4272) {
 				soundIndex = 0;
@@ -151,6 +152,7 @@ int main(void)
   enum STATE currentState = STARTUP;
   int prevButton = 0;
   int offTime;
+  int litPixels = 0;
   HAL_DAC_Start(&hdac, DAC_CHANNEL_1);
   HAL_TIM_Base_Start_IT(&htim6);
   HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
@@ -171,6 +173,7 @@ int main(void)
 			  currentState = LIGHT;
 		  }
 		  play = 1;
+		  litPixels = 0;
 		  __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_4, 900);
 
 		  break;
@@ -181,11 +184,6 @@ int main(void)
 		  }
 		  __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_4, 0);
 
-		  // __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 0);
-
-//		  if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1)) {
-//			  play = 1;
-//		  }
 		  break;
 	  case OFF:
 		  if (lightTime - offTime > 5000) {
@@ -201,8 +199,30 @@ int main(void)
 	  }
 	  if (lightTime >= nextLightTime) {
 		  nextLightTime = lightTime + 100;
+		  if (currentState != OFF) {
+			  litPixels += 5;
+			  if (litPixels > NUM_PIXELS) {
+				  litPixels = NUM_PIXELS;
+			  }
+		  }
+		  else {
+			  litPixels -= 5;
+			  if (litPixels < 0) {
+				  litPixels = 0;
+			  }
+		  }
 		  for (int i = 0; i < NUM_PIXELS; i++) {
-			  if (currentState != OFF) {
+//			  if (currentState != OFF) {
+//				  pixels[i].color.g = 0;
+//				  pixels[i].color.r = 50;
+//				  pixels[i].color.b = 0;
+//			  }
+//			  else {
+//				  pixels[i].color.g = 0;
+//				  pixels[i].color.r = 0;
+//				  pixels[i].color.b = 0;
+//			  }
+			  if (i <= litPixels) {
 				  pixels[i].color.g = 0;
 				  pixels[i].color.r = 50;
 				  pixels[i].color.b = 0;
