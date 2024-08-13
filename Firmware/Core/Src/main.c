@@ -26,6 +26,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+// Datatype to store the color to be sent to neopixels. Only lower 24 bits are used
 typedef union {
 	struct {
 		uint8_t b;
@@ -34,7 +35,7 @@ typedef union {
 	} color;
 	uint32_t data;
 } PixelGRB_t;
-
+// Datatype to determine state of lightsaber
 enum STATE {
 	STARTUP,
 	LIGHT,
@@ -91,6 +92,7 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
   HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_1);
 }
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+  // callback updates sound every 125us
 	if (htim == &htim6) {
 		if (play) {
 			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, swing[soundIndex]);
@@ -169,15 +171,18 @@ int main(void)
 
 	  switch(currentState) {
 	  case STARTUP:
+      // case for after button pressed to turn on firmware, before released
 		  if (!currentButton) {
 			  currentState = LIGHT;
 		  }
 		  play = 1;
 		  litPixels = 0;
+      // rumble motor
 		  __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_4, 900);
 
 		  break;
 	  case LIGHT:
+      // normal opperation state
 		  if (!currentButton && prevButton) {
 			  currentState = OFF;
 			  offTime = lightTime;
@@ -186,7 +191,9 @@ int main(void)
 
 		  break;
 	  case OFF:
+      // turn off state
 		  if (lightTime - offTime > 5000) {
+        // enter sleep mode
 			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
 		  }
 		  if (!currentButton && prevButton) {
@@ -197,9 +204,11 @@ int main(void)
 		  currentState = LIGHT;
 
 	  }
+    // Updates color packet for neopixel
 	  if (lightTime >= nextLightTime) {
 		  nextLightTime = lightTime + 100;
 		  if (currentState != OFF) {
+        // for startup sequence
 			  litPixels += 5;
 			  if (litPixels > NUM_PIXELS) {
 				  litPixels = NUM_PIXELS;
@@ -212,16 +221,6 @@ int main(void)
 			  }
 		  }
 		  for (int i = 0; i < NUM_PIXELS; i++) {
-//			  if (currentState != OFF) {
-//				  pixels[i].color.g = 0;
-//				  pixels[i].color.r = 50;
-//				  pixels[i].color.b = 0;
-//			  }
-//			  else {
-//				  pixels[i].color.g = 0;
-//				  pixels[i].color.r = 0;
-//				  pixels[i].color.b = 0;
-//			  }
 			  if (i <= litPixels) {
 				  pixels[i].color.g = 0;
 				  pixels[i].color.r = 50;
@@ -234,7 +233,7 @@ int main(void)
 			  }
 
 		  }
-
+      // Sends color data to DMA
 		  for (int i = 0; i < NUM_PIXELS; i++) {
 			  for (int j = 0; j < 24; j++) {
 				  if (((pixels[i].data) >> (23 - j)) & 0x01) {

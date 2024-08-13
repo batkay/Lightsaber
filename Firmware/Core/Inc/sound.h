@@ -7,6 +7,7 @@
 
 #ifndef INC_SOUND_H_
 #define INC_SOUND_H_
+// Array that stores the 8 bit values of a lightsaber sound file
 char swing[] = {
 		0x80,
 		0x80,
